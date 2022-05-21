@@ -191,4 +191,20 @@ boolean vac_presence(int pin) {
   }
 }
 
+void temp(DallasTemperature* tline, StaticJsonDocument<400>& document, const char* sensor, const char* line) {
+  tline->begin();
+  int tlsensors = tline->getDeviceCount();
+  tline->requestTemperatures();
+
+  document[sensor][line]["quantity"] = tlsensors;
+  for (int i = 0; i <= tlsensors; i++)
+  {
+    DeviceAddress saddr;
+    tline->getAddress(saddr, i);
+    char address[17];
+    sprintf(address, "%02X%02X%02X%02X%02X%02X%02X%02X", saddr[0], saddr[1], saddr[2], saddr[3], saddr[4], saddr[5], saddr[6], saddr[7]);
+    document[sensor][line][address] = tline->getTempC(saddr);
+  }
+}
+
 #endif

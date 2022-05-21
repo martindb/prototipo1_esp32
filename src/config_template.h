@@ -1,6 +1,6 @@
 
 // Info gral
-#define HOSTNAME "ESP8266_1"
+#define HOSTNAME "ESP32_1"
 #define SLEEPTIME 10e6
 
 // Info de Wifi

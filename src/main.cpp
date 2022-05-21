@@ -3,6 +3,8 @@
 #include <ArduinoHttpClient.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
+#include <OneWire.h>
+#include <DallasTemperature.h>
 
 // The ESP8266 RTC memory is arranged into blocks of 4 bytes. The access methods read and write 4 bytes at a time,
 // so the RTC data structure should be padded to a 4-byte multiple.
@@ -25,10 +27,17 @@
 #define VAC1 27          // Mide fase 1
 #define VAC2 32          // Mide fase 2
 #define VAC3 33          // Mide fase 3
+#define LINE1 22        // Linea de DS18b20 1 (cerca?)
+#define LINE2 23        // Linea de DS18b20 2 (lejos?)
 
 WiFiClient wifi_client;
-StaticJsonDocument<300> doc;
+StaticJsonDocument<400> doc;
 PubSubClient mqttClient;
+
+OneWire line1(LINE1);
+OneWire line2(LINE2);
+DallasTemperature tline1(&line1);
+DallasTemperature tline2(&line2);
 
 // Funciones
 #include "functions.h"
@@ -44,6 +53,9 @@ void setup() {
   Serial.printf("\n\n::: Mqtt init %ld\n", millis());
 
   // temperatura
+  temp(&tline1, doc, "sensor", "tline1");
+  temp(&tline2, doc, "sensor", "tline2");
+  Serial.printf("\n\n::: Temp sensors %ld\n", millis());
 
   // energia
   doc["sensor"]["mains"]["vac1"] = vac_presence(VAC1);
