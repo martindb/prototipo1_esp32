@@ -52,6 +52,9 @@ void setup() {
   mqtt_init();
   Serial.printf("\n\n::: Mqtt init %ld\n", millis());
 
+  // wakeup
+  doc["power"]["wakeup"] = esp_sleep_get_wakeup_cause();
+
   // temperatura
   temp(&tline1, doc, "sensor", "tline1");
   temp(&tline2, doc, "sensor", "tline2");
@@ -170,8 +173,15 @@ void setup() {
 
   // deep sleep
   Serial.printf("\n\n::: Deep Sleep %ld\n", millis());
-  // ESP.deepSleep(SLEEPTIME, WAKE_NO_RFCAL);
-  ESP.deepSleep(SLEEPTIME);
+  if(vcc < 4) {
+    esp_sleep_enable_ext0_wakeup(GPIO_NUM_35, 1); // wakeup cuando vuelve VCC
+  } else
+  {
+    esp_sleep_enable_ext0_wakeup(GPIO_NUM_35, 0); // wakeup cuando se va VCC
+  }
+
+  esp_sleep_enable_timer_wakeup(SLEEPTIME);
+  esp_deep_sleep_start();
 }
 
 void loop() { 
