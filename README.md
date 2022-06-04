@@ -36,3 +36,35 @@ Hardware:
 - DS18B20
 - optoacopladores sfh620
 - fuente switching 5v 5a
+
+Notas:
+Ojo que en el library.json de DallasTemperature tuve que quitar la dependencia de la onewire original y poner la ng
+  "dependencies":
+  {
+    "pstolarz/OneWireNg": "^0.11.2"
+  },
+
+
+
+  "connectivity": {
+    "wifi": true,
+    "gsmcheck": false,
+    "gprs": false,
+    "gprs tested": false,
+    "internet": "wifi",
+    "mqtt": true,
+    "mqtt sent": true,
+    "sms sent": false
+  }
+
+
+  "connectivity": {
+    "wifi": true,
+    "gsmcheck": false,
+    "gprs": false,
+    "gprs tested": false,
+    "internet": "wifi",
+    "mqtt": true,
+    "mqtt sent": true,
+    "sms sent": false
+  }

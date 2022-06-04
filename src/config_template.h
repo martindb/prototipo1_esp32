@@ -1,7 +1,9 @@
 
 // Info gral
 #define HOSTNAME "ESP32_1"
-#define SLEEPTIME 10e6
+#define SLEEPVCC 1 * 60e6
+#define SLEEPBAT 15 * 60e6
+#define SLEEPLOWBAT 60 * 60e6
 
 // Info de Wifi
 #define SSID "xxx"

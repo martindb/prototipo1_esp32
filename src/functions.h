@@ -1,31 +1,6 @@
 #ifndef FUNCTIONS
 #define FUNCTIONS
 
-// uint32_t calculateCRC32(const uint8_t *data, size_t length)
-// {
-//   uint32_t crc = 0xffffffff;
-//   while (length--)
-//   {
-//     uint8_t c = *data++;
-//     for (uint32_t i = 0x80; i > 0; i >>= 1)
-//     {
-//       bool bit = crc & 0x80000000;
-//       if (c & i)
-//       {
-//         bit = !bit;
-//       }
-
-//       crc <<= 1;
-//       if (bit)
-//       {
-//         crc ^= 0x04c11db7;
-//       }
-//     }
-//   }
-
-//   return crc;
-// }
-
 void serial_init() {
   Serial.begin(SERIALBPS);
   Serial2.begin(SERIAL2BPS);
@@ -71,7 +46,7 @@ void wifi_init() {
   //   rtcData.gsmcheck = 0;
   // }
   // Serial.printf("\n### gsmcheck: %d\n", rtcData.gsmcheck);
-  Serial.printf("\nConnecting to: %s ", SSID);
+  Serial.printf("\nWifi: Connecting to %s ", SSID);
   WiFi.persistent(false);
   WiFi.mode(WIFI_STA);
   WiFi.begin(SSID, PASSWORD);
@@ -79,6 +54,12 @@ void wifi_init() {
 
 void mqtt_init() {
   mqttClient.setServer(MQTT_BROKER_ADRESS, MQTT_PORT);
+}
+
+void general_init() {
+  serial_init();
+  wifi_init();
+  mqtt_init();
 }
 
 boolean wifi_check() {
@@ -115,6 +96,11 @@ boolean wifi_check() {
   // rtcData.crc32 = calculateCRC32(((uint8_t *)&rtcData) + 4, sizeof(rtcData) - 4);
   // ESP.rtcUserMemoryWrite(0, (uint32_t *)&rtcData, sizeof(rtcData));
   return true;
+}
+
+// PROGRAMARLA
+boolean gprs_check() {
+  return false;
 }
 
 boolean mqtt_check(WiFiClient &client) {
@@ -191,7 +177,7 @@ boolean vac_presence(int pin) {
   }
 }
 
-void temp(DallasTemperature* tline, StaticJsonDocument<400>& document, const char* sensor, const char* line) {
+void temp(DallasTemperature* tline, StaticJsonDocument<600>& document, const char* sensor, const char* line) {
   tline->begin();
   int tlsensors = tline->getDeviceCount();
   tline->requestTemperatures();
@@ -204,6 +190,35 @@ void temp(DallasTemperature* tline, StaticJsonDocument<400>& document, const cha
     char address[17];
     sprintf(address, "%02X%02X%02X%02X%02X%02X%02X%02X", saddr[0], saddr[1], saddr[2], saddr[3], saddr[4], saddr[5], saddr[6], saddr[7]);
     document[sensor][line][address] = tline->getTempC(saddr);
+  }
+}
+
+double sleep_calc(double vcc, int pbat) {
+  if (vcc > 4)
+  {
+    return SLEEPVCC;
+  }
+  else
+  {
+    if (pbat >= 50)
+    {
+      return SLEEPBAT;
+    }
+    else
+    {
+      return SLEEPLOWBAT;
+    }
+  }
+}
+
+void set_wakeup(double vcc) {
+  if (vcc < 4)
+  {
+    esp_sleep_enable_ext0_wakeup(GPIO_NUM_35, 1); // wakeup cuando vuelve VCC
+  }
+  else
+  {
+    esp_sleep_enable_ext0_wakeup(GPIO_NUM_35, 0); // wakeup cuando se va VCC
   }
 }
 

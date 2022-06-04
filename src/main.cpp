@@ -6,16 +6,6 @@
 #include <OneWire.h>
 #include <DallasTemperature.h>
 
-// The ESP8266 RTC memory is arranged into blocks of 4 bytes. The access methods read and write 4 bytes at a time,
-// so the RTC data structure should be padded to a 4-byte multiple.
-// struct
-// {
-//   uint32_t crc32;   // 4 bytes
-//   uint8_t channel;  // 1 byte,   5 in total
-//   uint8_t bssid[6]; // 6 bytes, 11 in total
-//   uint8_t gsmcheck;  // 1 byte,  12 in total
-// } rtcData;
-
 // Ver src/config_template.h
 #include "config_home.h"
 
@@ -31,7 +21,10 @@
 #define LINE2 23        // Linea de DS18b20 2 (lejos?)
 
 WiFiClient wifi_client;
-StaticJsonDocument<400> doc;
+// VER - deberia ser GSM client?
+WiFiClient gprs_client;
+
+StaticJsonDocument<600> doc;
 PubSubClient mqttClient;
 
 OneWire line1(LINE1);
@@ -43,14 +36,31 @@ DallasTemperature tline2(&line2);
 #include "functions.h"
 
 void setup() {
+  double sleep;
 
   // init general (serial, wifi, gprs, etc)
-  serial_init();
-  Serial.printf("\n\n::: Serial init %ld\n", millis());
-  wifi_init();
-  Serial.printf("\n\n::: Wifi init %ld\n", millis());
-  mqtt_init();
-  Serial.printf("\n\n::: Mqtt init %ld\n", millis());
+  general_init();
+  Serial.printf("\n\n::: General init %ld\n", millis());
+
+  // json init
+  doc["power"]["wakeup"] = nullptr;
+  doc["power"]["sleep"] = nullptr;
+  doc["power"]["vbat"] = nullptr;
+  doc["power"]["pbat"] = nullptr;
+  doc["power"]["vcc"] = nullptr;
+  doc["sensor"]["tline1"]["quantity"] = nullptr;
+  doc["sensor"]["tline2"]["quantity"] = nullptr;
+  doc["sensor"]["mains"]["vac1"] = nullptr;
+  doc["sensor"]["mains"]["vac2"] = nullptr;
+  doc["sensor"]["mains"]["vac3"] = nullptr;
+  doc["connectivity"]["wifi"] = nullptr;
+  doc["connectivity"]["gprs"] = nullptr;
+  doc["connectivity"]["gsm"] = nullptr;
+  doc["connectivity"]["internet"] = nullptr;
+  doc["connectivity"]["mqtt"] = nullptr;
+  doc["connectivity"]["mqtt_sent"] = nullptr;
+  doc["connectivity"]["sms_sent"] = nullptr;
+
 
   // wakeup
   doc["power"]["wakeup"] = esp_sleep_get_wakeup_cause();
@@ -60,66 +70,65 @@ void setup() {
   temp(&tline2, doc, "sensor", "tline2");
   Serial.printf("\n\n::: Temp sensors %ld\n", millis());
 
-  // energia
-  doc["sensor"]["mains"]["vac1"] = vac_presence(VAC1);
-  doc["sensor"]["mains"]["vac2"] = vac_presence(VAC2);
-  doc["sensor"]["mains"]["vac3"] = vac_presence(VAC3);
-  Serial.printf("\n\n::: Mains sensors %ld\n", millis());
-
   // power del supervisor
   double vbat = 0;
+  int pbat = 0;
   double vcc = 0;
   vbat = voltage(BATPIN);
+  pbat = bat_percentage(vbat);
   doc["power"]["vbat"] = vbat;
-  doc["power"]["pbat"] = bat_percentage(vbat);
+  doc["power"]["pbat"] = pbat;
   Serial.printf("\n\n::: Bat sensor %ld\n", millis());
   vcc = voltage(VCCPIN);
   doc["power"]["vcc"] = vcc;
   Serial.printf("\n\n::: VCC sensor %ld\n", millis());
 
-  // Si vcc es menor a 4 (diria que es cercano a 0), deberia haber problemas... posiblemente estemos andando en bateria
-  // asi que aca debemos pasarnos a modo deepsleep... ?
+  // sleep calc
+  sleep = sleep_calc(vcc, pbat);
+  doc["power"]["sleep"] = sleep / 60e6;
+
+  // energia de red
+  doc["sensor"]["mains"]["vac1"] = vac_presence(VAC1);
+  doc["sensor"]["mains"]["vac2"] = vac_presence(VAC2);
+  doc["sensor"]["mains"]["vac3"] = vac_presence(VAC3);
+  Serial.printf("\n\n::: Mains sensors %ld\n", millis());
 
   // wifi?
   boolean wifi_conn = wifi_check();
   doc["connectivity"]["wifi"] = wifi_conn;
   Serial.printf("\n\n::: Wifi check %ld\n", millis());
 
-  // conexion gprs
-  boolean gprs_conn = false;
-  // doc["connectivity"]["gsmcheck"] = rtcData.gsmcheck;
-  doc["connectivity"]["gsmcheck"] = false;
-
-  // if (rtcData.gsmcheck == 1)
-  // {
-  //   // Aca hay que chequear el gsm/gprs
-  //   doc["connectivity"]["gprs"] = gprs_conn;
-  //   doc["connectivity"]["gprs tested"] = true;
-  // }
-  // else
-  // {
-    doc["connectivity"]["gprs"] = gprs_conn;
-    doc["connectivity"]["gprs tested"] = false;
-  // }
-
+  // gprs?
+  boolean gprs_conn = gprs_check();
+  doc["connectivity"]["gprs"] = gprs_conn;
+  Serial.printf("\n\n::: Gprs check %ld\n", millis());
 
   // internet?
   boolean internet_conn = false;
-  doc["connectivity"]["internet"] = internet_conn;
 
   if(wifi_conn) {
     internet_conn = internet_check(wifi_client, INTERNET1, PORT1);
     if(!internet_conn) {
       internet_conn = internet_check(wifi_client, INTERNET2, PORT2);
     }
-    doc["connectivity"]["internet"] = internet_conn;
+    if(internet_conn) {
+      doc["connectivity"]["internet"] = "wifi";
+    }
+    Serial.printf("\n\n::: Internet (Wifi) check %ld\n", millis());
   }
   else if (gprs_conn)
   {
-    /* Mandar por aca la verificacion de internet*/
-    Serial.println("No hay wifi, pruebo internet por GPRS");
+    internet_conn = internet_check(gprs_client, INTERNET1, PORT1);
+    if (!internet_conn)
+    {
+      internet_conn = internet_check(gprs_client, INTERNET2, PORT2);
+    }
+    if (internet_conn)
+    {
+      doc["connectivity"]["internet"] = "gprs";
+    }
+    Serial.printf("\n\n::: Internet (Gprs) check %ld\n", millis());
   }
-  Serial.printf("\n\n::: Internet check %ld\n", millis());
 
   // MQTT?
   boolean mqtt_conn = false;
@@ -130,9 +139,8 @@ void setup() {
     } 
     else if (gprs_conn)
     {
-      // mqtt_conn = mqtt_check(gprs_client);
+      mqtt_conn = mqtt_check(gprs_client);
     }
-
     doc["connectivity"]["mqtt"] = mqtt_conn;
   }
   Serial.printf("\n\n::: Mqtt check %ld\n", millis());
@@ -141,46 +149,37 @@ void setup() {
   boolean mqtt_sent = false;
   boolean sms_sent = false;
 
-  doc["connectivity"]["mqtt sent"] = mqtt_sent;
-  doc["connectivity"]["sms sent"] = sms_sent;
-
   if(mqtt_conn) {
     // envio json por mqtt x internet
     mqttClient.beginPublish(MQTT_USER "/" HOSTNAME, measureJson(doc), false);
     serializeJson(doc, mqttClient);
-    mqtt_sent = mqttClient.endPublish();
-
-    // mqttClient.beginPublish(MQTT_USER "/" HOSTNAME, measureJson(doc), false);
-    // BufferingPrint bufferedClient(mqttClient, 32);
-    // serializeJson(doc, bufferedClient);
-    // bufferedClient.flush();
-    // mqtt_sent = mqttClient.endPublish();
-    // https: // arduinojson.org/v6/how-to/use-arduinojson-with-pubsubclient/
-    
-    doc["connectivity"]["mqtt sent"] = mqtt_sent;
+    mqtt_sent = mqttClient.endPublish();    
+    doc["connectivity"]["mqtt_sent"] = mqtt_sent;
     mqttClient.disconnect();
   }
   Serial.printf("\n\n::: Mqtt send %ld\n", millis());
 
+  // salio?
   if(!mqtt_sent){
     // si no se puede enviar mqtt, aviso por sms...
-    // hay que setear sms_sent a true si salio
+    // armo un mensaje a partir del json
+    //  temperaturas
+    //  mains
+    //  power o bateria?
+    //  % bateria
+    //  wifi, gprs, internet, mqtt
     Serial.println("no salio");
   }
 
-
+  // para debug a serial
   serializeJsonPretty(doc, Serial);
-
+  
   // deep sleep
+  // wakeup por pin 35 si se corta o vuelve VCC
+  set_wakeup(vcc);
+  // wakeup por tiempo
+  esp_sleep_enable_timer_wakeup(sleep);
   Serial.printf("\n\n::: Deep Sleep %ld\n", millis());
-  if(vcc < 4) {
-    esp_sleep_enable_ext0_wakeup(GPIO_NUM_35, 1); // wakeup cuando vuelve VCC
-  } else
-  {
-    esp_sleep_enable_ext0_wakeup(GPIO_NUM_35, 0); // wakeup cuando se va VCC
-  }
-
-  esp_sleep_enable_timer_wakeup(SLEEPTIME);
   esp_deep_sleep_start();
 }
 
