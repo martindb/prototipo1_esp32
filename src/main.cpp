@@ -1,28 +1,44 @@
-#include <Arduino.h>
-#include <WiFi.h>
-#include <ArduinoHttpClient.h>
-#include <PubSubClient.h>
-#include <ArduinoJson.h>
-#include <OneWire.h>
-#include <DallasTemperature.h>
-
-// Ver src/config_template.h
-#include "config_home.h"
-
 // Constants
 #define SERIALBPS 115200 // Debug
 #define SERIAL2BPS 19200 // SIM800L (GSM) - GPIO 16/17
+#define RESET 18         // SIM800L (GSM) RESET
 #define BATPIN 34        // (mide vbat)
 #define VCCPIN 35        //(mide vcc de la fuente)
 #define VAC1 27          // Mide fase 1
 #define VAC2 32          // Mide fase 2
 #define VAC3 33          // Mide fase 3
-#define LINE1 22        // Linea de DS18b20 1 (cerca?)
-#define LINE2 23        // Linea de DS18b20 2 (lejos?)
+#define LINE1 22         // Linea de DS18b20 1 (cerca?)
+#define LINE2 23         // Linea de DS18b20 2 (lejos?)
+// GSM
+#define SerialMon Serial
+#define SerialAT Serial2
+#define TINY_GSM_MODEM_SIM800
+#define TINY_GSM_DEBUG SerialMon
+#define DUMP_AT_COMMANDS
+
+#include <Arduino.h>
+#include <WiFi.h>
+#include <ArduinoHttpClient.h>
+#include <PubSubClient.h>
+#include <StreamUtils.h>
+#include <ArduinoJson.h>
+#include <OneWire.h>
+#include <DallasTemperature.h>
+#include <TinyGsmClient.h>
+
+// Ver src/config_template.h
+#include "config_home.h"
+
+#ifdef DUMP_AT_COMMANDS
+#include <StreamDebugger.h>
+StreamDebugger debugger(SerialAT, SerialMon);
+TinyGsm modem(debugger);
+#else
+TinyGsm modem(SerialAT);
+#endif
 
 WiFiClient wifi_client;
-// VER - deberia ser GSM client?
-WiFiClient gprs_client;
+TinyGsmClient gprs_client(modem, 0);
 
 StaticJsonDocument<600> doc;
 PubSubClient mqttClient;
@@ -38,6 +54,8 @@ DallasTemperature tline2(&line2);
 void setup() {
   double sleep;
 
+  pinMode(RESET, OUTPUT);
+  digitalWrite(RESET, HIGH);
   // init general (serial, wifi, gprs, etc)
   general_init();
   Serial.printf("\n\n::: General init %ld\n", millis());
@@ -151,9 +169,17 @@ void setup() {
 
   if(mqtt_conn) {
     // envio json por mqtt x internet
+    // mqttClient.beginPublish(MQTT_USER "/" HOSTNAME, measureJson(doc), false);
+    // serializeJson(doc, mqttClient);
+    // mqtt_sent = mqttClient.endPublish();
+
     mqttClient.beginPublish(MQTT_USER "/" HOSTNAME, measureJson(doc), false);
-    serializeJson(doc, mqttClient);
-    mqtt_sent = mqttClient.endPublish();    
+    BufferingPrint bufferedClient(mqttClient, 32);
+    serializeJson(doc, bufferedClient);
+    bufferedClient.flush();
+    mqtt_sent = mqttClient.endPublish();
+    // https: // arduinojson.org/v6/how-to/use-arduinojson-with-pubsubclient/
+
     doc["connectivity"]["mqtt_sent"] = mqtt_sent;
     mqttClient.disconnect();
   }
@@ -174,6 +200,13 @@ void setup() {
   // para debug a serial
   serializeJsonPretty(doc, Serial);
   
+
+  // gprs disable
+  //modem.setPhoneFunctionality(0);
+  gpio_hold_en(GPIO_NUM_18);
+  gpio_deep_sleep_hold_en();
+  digitalWrite(RESET, LOW);
+
   // deep sleep
   // wakeup por pin 35 si se corta o vuelve VCC
   set_wakeup(vcc);

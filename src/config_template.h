@@ -9,6 +9,11 @@
 #define SSID "xxx"
 #define PASSWORD "xxx"
 
+// Info GPRS
+#define APN "internet.movil"
+#define GPRSUSER "internet"
+#define GPRSPASS "internet"
+
 // Checks
 #define INTERNET1 "www.amazon.com"
 #define PORT1 80

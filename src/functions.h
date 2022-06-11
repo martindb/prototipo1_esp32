@@ -3,9 +3,10 @@
 
 void serial_init() {
   Serial.begin(SERIALBPS);
-  Serial2.begin(SERIAL2BPS);
   Serial.setTimeout(2000);
-  Serial2.setTimeout(2000);
+  Serial2.setRxBufferSize(2048);
+  Serial2.begin(SERIAL2BPS, SERIAL_8N1, 16, 17, false);
+  Serial2.setTimeout(20);
   // Wait for serial to initialize.
   while (!Serial)
   {
@@ -56,8 +57,16 @@ void mqtt_init() {
   mqttClient.setServer(MQTT_BROKER_ADRESS, MQTT_PORT);
 }
 
+void gprs_init() {
+  modem.setBaud(SERIAL2BPS);
+  modem.init();
+  //modem.setPhoneFunctionality(1);
+  modem.restart();
+}
+
 void general_init() {
   serial_init();
+  gprs_init();
   wifi_init();
   mqtt_init();
 }
@@ -65,24 +74,25 @@ void general_init() {
 boolean wifi_check() {
 
   int retries = 0;
+  WiFi.begin(SSID, PASSWORD);
   int wifiStatus = WiFi.status();
   while (wifiStatus != WL_CONNECTED)
   {
     retries++;
-    if (retries == 100)
+    // if (retries == 100)
+    // {
+    //   // Quick connect is not working, reset WiFi and try regular connection
+    //   WiFi.disconnect();
+    //   delay(10);
+    //   // WiFi.forceSleepBegin();
+    //   // delay(10);
+    //   // WiFi.forceSleepWake();
+    //   // delay(10);
+    //   WiFi.begin(SSID, PASSWORD);
+    // }
+    if (retries == 300)
     {
-      // Quick connect is not working, reset WiFi and try regular connection
-      WiFi.disconnect();
-      delay(10);
-      // WiFi.forceSleepBegin();
-      // delay(10);
-      // WiFi.forceSleepWake();
-      // delay(10);
-      WiFi.begin(SSID, PASSWORD);
-    }
-    if (retries == 600)
-    {
-      // Giving up after 30 seconds
+      // Giving up after 15 seconds
       return false;
     }
     delay(50);
@@ -98,12 +108,36 @@ boolean wifi_check() {
   return true;
 }
 
-// PROGRAMARLA
+// PROGRAMARLA o con esto alcanza?
 boolean gprs_check() {
-  return false;
+  int retries = 0;
+  modem.waitForNetwork(600000L, true);
+
+  if (modem.isNetworkConnected()) {
+    Serial.println("### Network ok, inicio gprsconnect");
+    modem.gprsConnect(APN, GPRSUSER, GPRSPASS);
+    Serial.println("### fin gprsconnect");
+  }
+
+  boolean conn = modem.isGprsConnected();
+
+  while (!conn)
+  {
+    retries++;
+    if(retries == 3) {
+      Serial.println("### no conecta");
+      return false;
+    }
+    // delay(1000);
+    // Serial.println("### loop gprs connected");
+    modem.gprsConnect(APN, GPRSUSER, GPRSPASS);
+    Serial.println("### siguientes gprsconnect");
+    conn = modem.isGprsConnected();
+  }
+  return conn;
 }
 
-boolean mqtt_check(WiFiClient &client) {
+boolean mqtt_check(Client &client) {
   unsigned int timeout = 15;
   unsigned int counter = 0;
   mqttClient.setClient(client);
