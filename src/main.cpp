@@ -56,6 +56,8 @@ void setup() {
 
   pinMode(RESET, OUTPUT);
   digitalWrite(RESET, HIGH);
+  gpio_hold_dis(GPIO_NUM_18);
+
   // init general (serial, wifi, gprs, etc)
   general_init();
   Serial.printf("\n\n::: General init %ld\n", millis());
@@ -202,10 +204,10 @@ void setup() {
   
 
   // gprs disable
-  //modem.setPhoneFunctionality(0);
+  delay(2000);
+  digitalWrite(RESET, LOW);
   gpio_hold_en(GPIO_NUM_18);
   gpio_deep_sleep_hold_en();
-  digitalWrite(RESET, LOW);
 
   // deep sleep
   // wakeup por pin 35 si se corta o vuelve VCC

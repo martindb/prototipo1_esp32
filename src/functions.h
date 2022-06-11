@@ -60,8 +60,7 @@ void mqtt_init() {
 void gprs_init() {
   modem.setBaud(SERIAL2BPS);
   modem.init();
-  //modem.setPhoneFunctionality(1);
-  modem.restart();
+  //modem.restart();
 }
 
 void general_init() {
