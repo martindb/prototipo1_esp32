@@ -85,7 +85,7 @@ void setup() {
 
   // sleep calc
   sleep = sleep_calc(vcc, pbat);
-  doc["power"]["sleep"] = sleep / 60e6;
+  doc["power"]["sleep"] = sleep;
 
   // energia de red
   doc["sensor"]["mains"]["vac1"] = vac_presence(VAC1);
@@ -178,7 +178,7 @@ void setup() {
   // wakeup por pin 35 si se corta o vuelve VCC
   set_wakeup(vcc);
   // wakeup por tiempo
-  esp_sleep_enable_timer_wakeup(sleep);
+  esp_sleep_enable_timer_wakeup(sleep * 60e6);
   Serial.printf("\n\n::: Deep Sleep %ld\n", millis());
   esp_deep_sleep_start();
 }
