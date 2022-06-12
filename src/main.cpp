@@ -204,7 +204,7 @@ void setup() {
   
 
   // gprs disable
-  delay(2000);
+  delay(5000);
   digitalWrite(RESET, LOW);
   gpio_hold_en(GPIO_NUM_18);
   gpio_deep_sleep_hold_en();
