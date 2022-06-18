@@ -40,7 +40,7 @@ TinyGsm modem(SerialAT);
 WiFiClient wifi_client;
 TinyGsmClient gprs_client(modem, 0);
 
-StaticJsonDocument<600> doc;
+StaticJsonDocument<800> doc;
 PubSubClient mqttClient;
 
 OneWire line1(LINE1);
@@ -68,6 +68,7 @@ void setup() {
   doc["power"]["vbat"] = nullptr;
   doc["power"]["pbat"] = nullptr;
   doc["power"]["vcc"] = nullptr;
+  doc["power"]["uptime"] = nullptr;
   doc["sensor"]["tline1"]["quantity"] = nullptr;
   doc["sensor"]["tline2"]["quantity"] = nullptr;
   doc["sensor"]["mains"]["vac1"] = nullptr;
@@ -138,9 +139,11 @@ void setup() {
   }
   else if (gprs_conn)
   {
+    // gprs_connect(60);
     internet_conn = internet_check(gprs_client, INTERNET1, PORT1);
     if (!internet_conn)
     {
+      // gprs_connect(60);
       internet_conn = internet_check(gprs_client, INTERNET2, PORT2);
     }
     if (internet_conn)
@@ -159,6 +162,7 @@ void setup() {
     } 
     else if (gprs_conn)
     {
+      gprs_connect(60);
       mqtt_conn = mqtt_check(gprs_client);
     }
     doc["connectivity"]["mqtt"] = mqtt_conn;
@@ -170,11 +174,8 @@ void setup() {
   boolean sms_sent = false;
 
   if(mqtt_conn) {
-    // envio json por mqtt x internet
-    // mqttClient.beginPublish(MQTT_USER "/" HOSTNAME, measureJson(doc), false);
-    // serializeJson(doc, mqttClient);
-    // mqtt_sent = mqttClient.endPublish();
-
+    // envio json por mqtt
+    doc["power"]["uptime"] = (int)(millis() / 1000);
     mqttClient.beginPublish(MQTT_USER "/" HOSTNAME, measureJson(doc), false);
     BufferingPrint bufferedClient(mqttClient, 32);
     serializeJson(doc, bufferedClient);
@@ -197,14 +198,16 @@ void setup() {
     //  % bateria
     //  wifi, gprs, internet, mqtt
     Serial.println("no salio");
+    send_message("No salio!");
   }
 
   // para debug a serial
+  doc["power"]["uptime"] = millis() / 1000;
   serializeJsonPretty(doc, Serial);
   
 
   // gprs disable
-  delay(5000);
+  delay(10000);
   digitalWrite(RESET, LOW);
   gpio_hold_en(GPIO_NUM_18);
   gpio_deep_sleep_hold_en();

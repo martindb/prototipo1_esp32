@@ -14,6 +14,14 @@
 #define GPRSUSER "internet"
 #define GPRSPASS "internet"
 
+// Numeros para SMS
+const char *numbers[] = {
+    "123456789",
+    "1234567890"
+  };
+
+#define phone_number_count (sizeof(numbers) / sizeof(const char *))
+
 // Checks
 #define INTERNET1 "www.amazon.com"
 #define PORT1 80

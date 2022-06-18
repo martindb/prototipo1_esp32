@@ -78,17 +78,6 @@ boolean wifi_check() {
   while (wifiStatus != WL_CONNECTED)
   {
     retries++;
-    // if (retries == 100)
-    // {
-    //   // Quick connect is not working, reset WiFi and try regular connection
-    //   WiFi.disconnect();
-    //   delay(10);
-    //   // WiFi.forceSleepBegin();
-    //   // delay(10);
-    //   // WiFi.forceSleepWake();
-    //   // delay(10);
-    //   WiFi.begin(SSID, PASSWORD);
-    // }
     if (retries == 300)
     {
       // Giving up after 15 seconds
@@ -97,29 +86,37 @@ boolean wifi_check() {
     delay(50);
     wifiStatus = WiFi.status();
   }
-
-  // // Write current connection info back to RTC
-  // rtcData.channel = WiFi.channel();
-  // memcpy(rtcData.bssid, WiFi.BSSID(), 6); // Copy 6 bytes of BSSID (AP's MAC address)
-  // rtcData.gsmcheck++;
-  // rtcData.crc32 = calculateCRC32(((uint8_t *)&rtcData) + 4, sizeof(rtcData) - 4);
-  // ESP.rtcUserMemoryWrite(0, (uint32_t *)&rtcData, sizeof(rtcData));
   return true;
 }
 
-// PROGRAMARLA o con esto alcanza?
+boolean gprs_connect(int timeout) {
+  //gprs_init();
+
+  if (modem.waitForNetwork(timeout * 1000L))
+  {
+    Serial.println("### waitForNetwork ok");
+    if (modem.gprsConnect(APN, GPRSUSER, GPRSPASS))
+    {
+      Serial.println("### gprsConnect ok");
+      return true;
+    }
+    else
+    {
+      Serial.println("### gprsConnect ERROR");
+      return false;
+    }
+  }
+  else
+  {
+    Serial.println("### waitForNetwork ERROR");
+    return false;
+  }
+}
+
 boolean gprs_check() {
   int retries = 0;
-  modem.waitForNetwork(600000L, true);
-
-  if (modem.isNetworkConnected()) {
-    Serial.println("### Network ok, inicio gprsconnect");
-    modem.gprsConnect(APN, GPRSUSER, GPRSPASS);
-    Serial.println("### fin gprsconnect");
-  }
-
+  gprs_connect(60);
   boolean conn = modem.isGprsConnected();
-
   while (!conn)
   {
     retries++;
@@ -127,13 +124,25 @@ boolean gprs_check() {
       Serial.println("### no conecta");
       return false;
     }
-    // delay(1000);
-    // Serial.println("### loop gprs connected");
-    modem.gprsConnect(APN, GPRSUSER, GPRSPASS);
-    Serial.println("### siguientes gprsconnect");
+    Serial.printf("### intento %s\n", retries);
+    gprs_init();
+    gprs_connect(60);
     conn = modem.isGprsConnected();
   }
-  return conn;
+  Serial.println("### conecto!");
+  return true;
+}
+
+boolean send_message(const char *message)
+{
+  boolean result = true;
+
+  for (int i = 0; i < phone_number_count; i++)
+  {
+    result &= modem.sendSMS(numbers[i], message);
+  }
+  Serial.printf("### sendSMS %d\n", result);
+  return result;
 }
 
 boolean mqtt_check(Client &client) {
@@ -162,6 +171,7 @@ boolean internet_check(Client &client, String host, int port) {
   http_client.get("/");
   http_client.endRequest();
   int statusCode = http_client.responseStatusCode();
+  http_client.stop();
   if (statusCode >= 200 && statusCode < 400)
   {
     Serial.printf("\nInternet OK (%s:%d - %d)\n", host.c_str(), port, statusCode);
@@ -210,7 +220,7 @@ boolean vac_presence(int pin) {
   }
 }
 
-void temp(DallasTemperature* tline, StaticJsonDocument<600>& document, const char* sensor, const char* line) {
+void temp(DallasTemperature* tline, StaticJsonDocument<800>& document, const char* sensor, const char* line) {
   tline->begin();
   int tlsensors = tline->getDeviceCount();
   tline->requestTemperatures();
