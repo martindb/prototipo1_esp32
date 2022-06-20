@@ -19,7 +19,6 @@ const char *numbers[] = {
     "123456789",
     "1234567890"
   };
-
 #define phone_number_count (sizeof(numbers) / sizeof(const char *))
 
 // Checks

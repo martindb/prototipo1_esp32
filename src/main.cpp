@@ -175,16 +175,15 @@ void setup() {
 
   if(mqtt_conn) {
     // envio json por mqtt
+    // https: // arduinojson.org/v6/how-to/use-arduinojson-with-pubsubclient/
     doc["power"]["uptime"] = (int)(millis() / 1000);
     mqttClient.beginPublish(MQTT_USER "/" HOSTNAME, measureJson(doc), false);
     BufferingPrint bufferedClient(mqttClient, 32);
     serializeJson(doc, bufferedClient);
     bufferedClient.flush();
     mqtt_sent = mqttClient.endPublish();
-    // https: // arduinojson.org/v6/how-to/use-arduinojson-with-pubsubclient/
-
-    doc["connectivity"]["mqtt_sent"] = mqtt_sent;
     mqttClient.disconnect();
+    doc["connectivity"]["mqtt_sent"] = mqtt_sent;
   }
   Serial.printf("\n\n::: Mqtt send %ld\n", millis());
 
@@ -204,10 +203,11 @@ void setup() {
   // para debug a serial
   doc["power"]["uptime"] = millis() / 1000;
   serializeJsonPretty(doc, Serial);
-  
 
   // gprs disable
   delay(10000);
+  modem.poweroff();
+  delay(1000);
   digitalWrite(RESET, LOW);
   gpio_hold_en(GPIO_NUM_18);
   gpio_deep_sleep_hold_en();

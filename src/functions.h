@@ -90,20 +90,24 @@ boolean wifi_check() {
 }
 
 boolean gprs_connect(int timeout) {
-  //gprs_init();
 
   if (modem.waitForNetwork(timeout * 1000L))
   {
     Serial.println("### waitForNetwork ok");
-    if (modem.gprsConnect(APN, GPRSUSER, GPRSPASS))
-    {
-      Serial.println("### gprsConnect ok");
+    if (modem.isGprsConnected()) {
+      Serial.println("### gprsConnected ok");
       return true;
-    }
-    else
-    {
-      Serial.println("### gprsConnect ERROR");
-      return false;
+    } else {
+      if (modem.gprsConnect(APN, GPRSUSER, GPRSPASS))
+      {
+        Serial.println("### gprsConnect ok");
+        return true;
+      }
+      else
+      {
+        Serial.println("### gprsConnect ERROR");
+        return false;
+      }
     }
   }
   else
@@ -125,7 +129,8 @@ boolean gprs_check() {
       return false;
     }
     Serial.printf("### intento %s\n", retries);
-    gprs_init();
+    // modem.init();
+    modem.restart();
     gprs_connect(60);
     conn = modem.isGprsConnected();
   }
